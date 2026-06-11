@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OG Image Generator</title>
+<meta name="description" content="Generate Open Graph social cards from text input. 1200x630, ready to download. Browser-only, no signup, no Canva.">
+<meta name="ai.description" content="Single-file HTML tool that generates Open Graph (1200x630) social card images using the HTML Canvas API. User picks a preset layout, types a title and subtitle, optionally tweaks colors and fonts, and downloads a PNG. Works entirely in the browser; no server, no signup, no third-party scripts. Includes 4 layout presets and 4 color schemes. Light and dark UI themes.">
+<meta property="og:title" content="OG Image Generator">
+<meta property="og:description" content="Generate Open Graph social cards in your browser.">
+<meta property="og:type" content="website">
+<style>
+:root {
+  --bg: #fafaf6;
+  --surface: #ffffff;
+  --surface-2: #f0eee8;
+  --ink: #1f1d1a;
+  --ink-soft: #5a544c;
+  --rule: #d9d4ca;
+  --rule-strong: #1f1d1a;
+  --accent: #b04829;
+  --accent-soft: #f7e0d4;
+  --serif: "Iowan Old Style", "Charter", "Source Serif Pro", "Georgia", serif;
+  --slab: "Roboto Slab", "Source Serif Pro", "Georgia", serif;
+  --sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+  --ok: #1f6f43;
+  --ok-soft: #e3f2ea;
+  --err: #b3261e;
+  --err-soft: #fbe9e7;
+}
+[data-theme="dark"] {
+  --bg: #1a1714;
+  --surface: #25211d;
+  --surface-2: #1f1c19;
+  --ink: #f5efe5;
+  --ink-soft: #aea69a;
+  --rule: #3a342d;
+  --rule-strong: #f5efe5;
+  --accent: #ed7e5f;
+  --accent-soft: #3d2419;
+  --ok: #7fc99c;
+  --ok-soft: #1f3327;
+  --err: #f08585;
+  --err-soft: #3d2222;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.55;
+  font-size: 14px;
+  min-height: 100vh;
+}
+
+.skip-link { position: absolute; left: -9999px; top: 0; background: var(--accent); color: var(--surface); padding: 0.5rem 1rem; z-index: 100; font-weight: 600; }
+.skip-link:focus { left: 1rem; top: 1rem; }
+
+.layout { max-width: 1100px; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; }
+
+header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2rem;
+  align-items: end;
+  padding-bottom: 1.5rem;
+  border-bottom: 2px solid var(--rule-strong);
+  margin-bottom: 2rem;
+}
+.brand {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+h1 {
+  font-family: var(--slab);
+  font-size: clamp(1.75rem, 4vw, 2.625rem);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.05;
+}
+h1 .accent { color: var(--accent); }
+.subtitle {
+  margin-top: 0.625rem;
+  color: var(--ink-soft);
+  font-size: 0.9375rem;
+  max-width: 520px;
+}
+
+.theme-toggle {
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--rule-strong);
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  flex-shrink: 0;
+}
+.theme-toggle:hover { background: var(--ink); color: var(--bg); }
+.theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.theme-toggle svg { width: 14px; height: 14px; }
+
+/* Two-column layout: controls on left, preview on right */
+.workspace {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+@media (max-width: 880px) { .workspace { grid-template-columns: 1fr; } }
+
+.controls-col, .preview-col {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 1.25rem;
+}
+
+.section { margin-bottom: 1.25rem; }
+.section:last-child { margin-bottom: 0; }
+.section-head {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  margin-bottom: 0.5rem;
+}
+
+label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+input[type="text"], textarea, select {
+  width: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 0.5rem 0.625rem;
+  font: inherit;
+  font-size: 0.875rem;
+  font-family: var(--sans);
+}
+textarea { resize: vertical; min-height: 60px; line-height: 1.5; }
+input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
+.field { margin-bottom: 0.75rem; }
+.field:last-child { margin-bottom: 0; }
+
+.swatch-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.4rem;
+}
+.swatch {
+  aspect-ratio: 1.4 / 1;
+  border-radius: 3px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: transform 80ms ease;
+}
+.swatch:hover { transform: scale(1.05); }
+.swatch[aria-checked="true"] { border-color: var(--ink); outline: 2px solid var(--accent); outline-offset: 1px; }
+.swatch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.layout-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.4rem;
+}
+.layout-btn {
+  background: var(--surface-2);
+  color: var(--ink);
+  border: 2px solid transparent;
+  border-radius: 3px;
+  padding: 0.5rem;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.3rem;
+}
+.layout-btn:hover { background: var(--accent-soft); }
+.layout-btn[aria-checked="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.layout-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.layout-thumb {
+  height: 36px;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: var(--surface);
+  position: relative;
+  overflow: hidden;
+}
+.layout-thumb::before, .layout-thumb::after {
+  content: "";
+  position: absolute;
+  background: var(--ink);
+  opacity: 0.7;
+}
+.layout-btn[data-layout="centered"] .layout-thumb::before { top: 12px; left: 25%; right: 25%; height: 4px; }
+.layout-btn[data-layout="centered"] .layout-thumb::after  { top: 22px; left: 35%; right: 35%; height: 2px; opacity: 0.4; }
+.layout-btn[data-layout="left"] .layout-thumb::before     { top: 12px; left: 12%; width: 50%; height: 4px; }
+.layout-btn[data-layout="left"] .layout-thumb::after      { top: 22px; left: 12%; width: 35%; height: 2px; opacity: 0.4; }
+.layout-btn[data-layout="banner"] .layout-thumb::before   { top: 4px; left: 4px; right: 4px; height: 6px; background: var(--accent); opacity: 1; }
+.layout-btn[data-layout="banner"] .layout-thumb::after    { top: 18px; left: 12%; right: 12%; height: 4px; }
+.layout-btn[data-layout="quote"] .layout-thumb::before    { top: 8px; left: 8px; width: 4px; height: 24px; background: var(--accent); opacity: 1; }
+.layout-btn[data-layout="quote"] .layout-thumb::after     { top: 12px; left: 20px; right: 8px; height: 14px; }
+
+.preview-frame {
+  background: var(--surface-2);
+  border: 1px dashed var(--rule);
+  padding: 0.875rem;
+  border-radius: 3px;
+  position: relative;
+}
+.preview-frame::before {
+  content: attr(data-label);
+  position: absolute;
+  top: -0.5rem;
+  left: 0.875rem;
+  background: var(--surface);
+  padding: 0 0.4rem;
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 2px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  background: #fff;
+}
+
+.row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin-top: 0.875rem; }
+button.primary, button.secondary {
+  font: inherit; font-size: 0.8125rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  padding: 0.55rem 1rem;
+  border-radius: 3px;
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 0.4rem;
+}
+button.primary {
+  background: var(--accent);
+  color: #ffffff;
+  border: 1px solid var(--accent);
+}
+button.primary:hover:not(:disabled) { filter: brightness(0.92); }
+button.secondary {
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--rule-strong);
+}
+button.secondary:hover:not(:disabled) { background: var(--ink); color: var(--bg); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.dim-info {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-soft);
+  margin-top: 0.625rem;
+  text-align: center;
+}
+
+footer {
+  margin-top: 3rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--rule);
+  font-size: 0.75rem;
+  color: var(--ink-soft);
+  line-height: 1.7;
+}
+footer a { color: var(--ink-soft); text-decoration: underline; text-underline-offset: 2px; }
+footer a:hover, footer a:focus { color: var(--accent); }
+
+@media (max-width: 540px) {
+  .layout { padding: 1.5rem 1rem 3rem; }
+  h1 { font-size: 1.5rem; }
+  header { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body data-theme="light">
+<a href="#main" class="skip-link">Skip to main content</a>
+<div class="layout">
+
+  <header>
+    <div>
+      <div class="brand">OG // IMAGE GEN</div>
+      <h1>Make a <span class="accent">social card.</span><br>Skip the design tool.</h1>
+      <p class="subtitle">Type a title, pick a layout, download a 1200x630 PNG. Drag-droppable into any meta tag.</p>
+    </div>
+    <button type="button" class="theme-toggle" id="theme-btn" aria-label="Toggle dark theme" aria-pressed="false">
+      <svg id="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="4"></circle>
+        <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path>
+      </svg>
+      <span id="theme-label">Dark</span>
+    </button>
+  </header>
+
+  <main id="main">
+    <div class="workspace">
+      <div class="controls-col">
+
+        <div class="section">
+          <div class="section-head">Layout</div>
+          <div class="layout-grid" role="radiogroup" aria-label="Layout preset">
+            <button type="button" class="layout-btn" data-layout="centered" aria-checked="true" role="radio">
+              <div class="layout-thumb"></div>
+              Centered
+            </button>
+            <button type="button" class="layout-btn" data-layout="left" aria-checked="false" role="radio">
+              <div class="layout-thumb"></div>
+              Left-aligned
+            </button>
+            <button type="button" class="layout-btn" data-layout="banner" aria-checked="false" role="radio">
+              <div class="layout-thumb"></div>
+              Top banner
+            </button>
+            <button type="button" class="layout-btn" data-layout="quote" aria-checked="false" role="radio">
+              <div class="layout-thumb"></div>
+              Side bar
+            </button>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-head">Color scheme</div>
+          <div class="swatch-grid" role="radiogroup" aria-label="Color scheme"></div>
+        </div>
+
+        <div class="section">
+          <div class="section-head">Content</div>
+          <div class="field">
+            <label for="title-input">Title</label>
+            <input type="text" id="title-input" value="Your headline goes here" maxlength="120">
+          </div>
+          <div class="field">
+            <label for="subtitle-input">Subtitle (optional)</label>
+            <input type="text" id="subtitle-input" value="Short supporting line under the title" maxlength="160">
+          </div>
+          <div class="field">
+            <label for="badge-input">Top badge (optional)</label>
+            <input type="text" id="badge-input" value="ARTICLE" maxlength="40">
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-head">Typography</div>
+          <div class="field">
+            <label for="font-select">Heading font</label>
+            <select id="font-select">
+              <option value="serif">Serif (Georgia)</option>
+              <option value="slab">Slab (Roboto Slab)</option>
+              <option value="sans" selected>Sans (Inter)</option>
+              <option value="mono">Monospace</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top: 1.25rem;">
+          <button type="button" class="primary" id="download-btn">Download PNG</button>
+          <button type="button" class="secondary" id="copy-btn">Copy meta tags</button>
+        </div>
+        <div id="action-status" role="status" aria-live="polite" style="margin-top: 0.625rem;"></div>
+      </div>
+
+      <div class="preview-col">
+        <div class="section" style="margin: 0;">
+          <div class="section-head">Preview</div>
+          <div class="preview-frame" data-label="1200 x 630">
+            <canvas id="canvas" width="1200" height="630" aria-label="OG image preview"></canvas>
+          </div>
+          <div class="dim-info">Render scale: 2x for crisp downloads. Output: 1200x630 PNG.</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <p>Source: <a href="https://github.com/0xelitesystem/og-image-generator" target="_blank" rel="noopener">github.com/0xelitesystem/og-image-generator</a></p>
+    <p>Related: <a href="https://github.com/0xelitesystem/single-file-saas-template" target="_blank" rel="noopener">single-file-saas-template</a> &middot; <a href="https://github.com/0xelitesystem/prompt-cost-calculator" target="_blank" rel="noopener">prompt-cost-calculator</a> &middot; <a href="https://github.com/0xelitesystem/readme-slop-checker" target="_blank" rel="noopener">readme-slop-checker</a></p>
+    <p>1200x630 is the standard Open Graph image size used by Twitter/X, LinkedIn, Facebook, Slack, Discord, iMessage. Renders sharp at 1x and 2x.</p>
+  </footer>
+</div>
+
+<script>
+"use strict";
+
+// =============================================================================
+// Color schemes. Each: bg, fg, accent, badge bg/fg, subtitle color.
+// =============================================================================
+const SCHEMES = [
+  { id: "ink",     name: "Ink",     bg: "#0e0e0e", fg: "#f5f5f0", accent: "#ff5a3c", subFg: "#a8a8a0", badgeBg: "#ff5a3c", badgeFg: "#0e0e0e" },
+  { id: "paper",   name: "Paper",   bg: "#fafaf6", fg: "#1f1d1a", accent: "#b04829", subFg: "#5a544c", badgeBg: "#1f1d1a", badgeFg: "#fafaf6" },
+  { id: "ocean",   name: "Ocean",   bg: "#0a1f3a", fg: "#e8f0fb", accent: "#4d9eff", subFg: "#9aa8be", badgeBg: "#4d9eff", badgeFg: "#0a1f3a" },
+  { id: "forest",  name: "Forest",  bg: "#0f2818", fg: "#e8f5ec", accent: "#7fc99c", subFg: "#9ab09f", badgeBg: "#7fc99c", badgeFg: "#0f2818" },
+  { id: "sunset",  name: "Sunset",  bg: "#2a0e1f", fg: "#f7e8e0", accent: "#ed7e5f", subFg: "#b59a92", badgeBg: "#ed7e5f", badgeFg: "#2a0e1f" },
+  { id: "violet",  name: "Violet",  bg: "#1a1428", fg: "#f0e8f8", accent: "#b89cff", subFg: "#a89cb8", badgeBg: "#b89cff", badgeFg: "#1a1428" },
+  { id: "linen",   name: "Linen",   bg: "#f5ede0", fg: "#3d2914", accent: "#c45842", subFg: "#7a6354", badgeBg: "#3d2914", badgeFg: "#f5ede0" },
+  { id: "graphite",name: "Graphite",bg: "#1f2127", fg: "#e8eaef", accent: "#fbbf24", subFg: "#9ca3af", badgeBg: "#fbbf24", badgeFg: "#1f2127" }
+];
+
+const FONT_FAMILIES = {
+  serif: 'Georgia, "Iowan Old Style", "Charter", "Source Serif Pro", serif',
+  slab:  '"Roboto Slab", "Source Serif Pro", "Georgia", serif',
+  sans:  '"Inter", -apple-system, "Segoe UI", Roboto, sans-serif',
+  mono:  'ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace'
+};
+
+const LAYOUTS = ["centered", "left", "banner", "quote"];
+
+// =============================================================================
+// State
+// =============================================================================
+let state = {
+  layout: "centered",
+  scheme: SCHEMES[0],
+  title: "Your headline goes here",
+  subtitle: "Short supporting line under the title",
+  badge: "ARTICLE",
+  font: "sans"
+};
+
+// =============================================================================
+// Helpers
+// =============================================================================
+const $ = (id) => document.getElementById(id);
+const escapeHtml = (s) => String(s).replace(/[&<>"']/g, c => (
+  { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+));
+
+function setStatus(el, kind, label, msg) {
+  if (!kind) { el.innerHTML = ""; return; }
+  el.innerHTML = `<div style="font-family: var(--mono); font-size: 0.75rem; color: var(--${kind === 'ok' ? 'ok' : 'err'}); padding: 0.4rem 0.5rem; background: var(--${kind === 'ok' ? 'ok-soft' : 'err-soft'}); border-radius: 3px;">${escapeHtml(label)}: ${escapeHtml(msg)}</div>`;
+}
+
+function wrapText(ctx, text, maxWidth, maxLines) {
+  const words = text.split(/\s+/);
+  const lines = [];
+  let current = "";
+  for (const word of words) {
+    const candidate = current ? current + " " + word : word;
+    const w = ctx.measureText(candidate).width;
+    if (w > maxWidth && current) {
+      lines.push(current);
+      current = word;
+      if (lines.length >= maxLines - 1) break;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current && lines.length < maxLines) lines.push(current);
+  // If there are still words left, indicate truncation on the last line
+  return lines;
+}
+
+// =============================================================================
+// Canvas rendering
+// =============================================================================
+function render() {
+  const canvas = $("canvas");
+  const ctx = canvas.getContext("2d");
+  const W = 1200, H = 630;
+  canvas.width = W; canvas.height = H;
+  const s = state.scheme;
+  const fontFamily = FONT_FAMILIES[state.font];
+
+  // Background
+  ctx.fillStyle = s.bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Layout-specific rendering
+  if (state.layout === "banner") {
+    // Top accent bar
+    ctx.fillStyle = s.accent;
+    ctx.fillRect(0, 0, W, 24);
+  } else if (state.layout === "quote") {
+    // Left accent bar
+    ctx.fillStyle = s.accent;
+    ctx.fillRect(0, 0, 24, H);
+  }
+
+  // Padding zones
+  const padL = state.layout === "quote" ? 80 : 80;
+  const padR = 80;
+  const contentWidth = W - padL - padR;
+
+  // Badge
+  let badgeBottomY = 0;
+  if (state.badge && state.badge.trim()) {
+    const badgeFontSize = 22;
+    ctx.font = `700 ${badgeFontSize}px ${FONT_FAMILIES.mono}`;
+    const badgeText = state.badge.trim().toUpperCase();
+    const badgeMetrics = ctx.measureText(badgeText);
+    const badgeW = badgeMetrics.width + 28;
+    const badgeH = badgeFontSize + 16;
+
+    let badgeX, badgeY;
+    if (state.layout === "centered") {
+      badgeX = (W - badgeW) / 2;
+      badgeY = 80;
+    } else if (state.layout === "banner") {
+      badgeX = padL;
+      badgeY = 60;
+    } else if (state.layout === "quote") {
+      badgeX = padL;
+      badgeY = 80;
+    } else {
+      badgeX = padL;
+      badgeY = 80;
+    }
+
+    ctx.fillStyle = s.badgeBg;
+    roundRect(ctx, badgeX, badgeY, badgeW, badgeH, 4);
+    ctx.fill();
+    ctx.fillStyle = s.badgeFg;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(badgeText, badgeX + 14, badgeY + badgeH / 2 + 1);
+    badgeBottomY = badgeY + badgeH;
+  }
+
+  // Title
+  const titleSize = state.title.length > 60 ? 64 : (state.title.length > 30 ? 80 : 96);
+  ctx.font = `700 ${titleSize}px ${fontFamily}`;
+  ctx.textBaseline = "alphabetic";
+  ctx.fillStyle = s.fg;
+
+  const align = (state.layout === "centered") ? "center" : "left";
+  ctx.textAlign = align;
+
+  const titleLines = wrapText(ctx, state.title, contentWidth, 4);
+  const lineHeight = titleSize * 1.15;
+  const titleBlockH = titleLines.length * lineHeight;
+
+  // Subtitle measurement
+  let subtitleLines = [];
+  let subtitleSize = 32;
+  let subtitleLineHeight = subtitleSize * 1.4;
+  let subtitleBlockH = 0;
+  if (state.subtitle && state.subtitle.trim()) {
+    ctx.font = `400 ${subtitleSize}px ${fontFamily}`;
+    subtitleLines = wrapText(ctx, state.subtitle, contentWidth, 3);
+    subtitleBlockH = subtitleLines.length * subtitleLineHeight;
+  }
+
+  const totalBlockH = titleBlockH + (subtitleBlockH ? 28 + subtitleBlockH : 0);
+
+  // Vertical positioning
+  let titleY;
+  if (state.layout === "centered") {
+    titleY = (H - totalBlockH) / 2 + titleSize;
+  } else {
+    titleY = Math.max(badgeBottomY + 60, H * 0.45 - totalBlockH / 2 + titleSize);
+  }
+
+  // Draw title
+  ctx.font = `700 ${titleSize}px ${fontFamily}`;
+  ctx.fillStyle = s.fg;
+  const titleX = align === "center" ? W / 2 : padL;
+  for (let i = 0; i < titleLines.length; i++) {
+    ctx.fillText(titleLines[i], titleX, titleY + i * lineHeight);
+  }
+
+  // Draw subtitle
+  if (subtitleLines.length > 0) {
+    ctx.font = `400 ${subtitleSize}px ${fontFamily}`;
+    ctx.fillStyle = s.subFg;
+    const subY = titleY + titleBlockH - lineHeight + subtitleSize + 28;
+    for (let i = 0; i < subtitleLines.length; i++) {
+      ctx.fillText(subtitleLines[i], titleX, subY + i * subtitleLineHeight);
+    }
+  }
+
+  // Bottom accent line on centered layout for visual anchor
+  if (state.layout === "centered") {
+    ctx.fillStyle = s.accent;
+    const accentBarW = 96;
+    ctx.fillRect((W - accentBarW) / 2, H - 80, accentBarW, 4);
+  }
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+  ctx.fill();
+}
+
+// =============================================================================
+// Color scheme picker render
+// =============================================================================
+function renderSwatches() {
+  const grid = document.querySelector(".swatch-grid");
+  grid.innerHTML = "";
+  for (const sc of SCHEMES) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "swatch";
+    btn.setAttribute("role", "radio");
+    btn.setAttribute("aria-label", sc.name);
+    btn.setAttribute("aria-checked", state.scheme.id === sc.id ? "true" : "false");
+    btn.dataset.id = sc.id;
+    btn.style.background = sc.bg;
+    btn.style.color = sc.fg;
+    btn.innerHTML = `<span style="color: ${sc.accent};">&#9632;</span>`;
+    btn.title = sc.name;
+    btn.addEventListener("click", () => {
+      state.scheme = sc;
+      document.querySelectorAll(".swatch").forEach(s => s.setAttribute("aria-checked", "false"));
+      btn.setAttribute("aria-checked", "true");
+      render();
+    });
+    grid.appendChild(btn);
+  }
+}
+
+// =============================================================================
+// Wiring
+// =============================================================================
+document.querySelectorAll(".layout-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    state.layout = btn.dataset.layout;
+    document.querySelectorAll(".layout-btn").forEach(b => b.setAttribute("aria-checked", "false"));
+    btn.setAttribute("aria-checked", "true");
+    render();
+  });
+});
+
+$("title-input").addEventListener("input", e => { state.title = e.target.value; render(); });
+$("subtitle-input").addEventListener("input", e => { state.subtitle = e.target.value; render(); });
+$("badge-input").addEventListener("input", e => { state.badge = e.target.value; render(); });
+$("font-select").addEventListener("change", e => { state.font = e.target.value; render(); });
+
+$("download-btn").addEventListener("click", () => {
+  const canvas = $("canvas");
+  canvas.toBlob(blob => {
+    if (!blob) { setStatus($("action-status"), "err", "Error", "Could not generate PNG."); return; }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const slug = state.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "og-image";
+    a.download = `${slug}.png`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 200);
+    setStatus($("action-status"), "ok", "Downloaded", `Saved as ${a.download}`);
+  }, "image/png");
+});
+
+$("copy-btn").addEventListener("click", async () => {
+  const tags = `<meta property="og:title" content="${escapeHtml(state.title)}">
+<meta property="og:description" content="${escapeHtml(state.subtitle)}">
+<meta property="og:image" content="https://yoursite.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${escapeHtml(state.title)}">
+<meta name="twitter:description" content="${escapeHtml(state.subtitle)}">
+<meta name="twitter:image" content="https://yoursite.com/og.png">`;
+  try {
+    await navigator.clipboard.writeText(tags);
+    setStatus($("action-status"), "ok", "Copied", "Meta tags copied. Paste into <head> and replace the image URL.");
+  } catch {
+    setStatus($("action-status"), "err", "Failed", "Clipboard blocked. Tags shown below.");
+    const ta = document.createElement("textarea");
+    ta.value = tags; ta.style.width = "100%"; ta.style.marginTop = "0.5rem"; ta.style.fontFamily = "monospace"; ta.style.fontSize = "11px"; ta.rows = 9;
+    $("action-status").appendChild(ta);
+  }
+});
+
+// Theme
+function applyTheme(theme) {
+  document.body.dataset.theme = theme;
+  $("theme-label").textContent = theme === "dark" ? "Light" : "Dark";
+  $("theme-btn").setAttribute("aria-pressed", String(theme === "dark"));
+  const icon = $("theme-icon");
+  if (theme === "dark") {
+    icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>';
+  } else {
+    icon.innerHTML = '<circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path>';
+  }
+}
+$("theme-btn").addEventListener("click", () => {
+  applyTheme(document.body.dataset.theme === "dark" ? "light" : "dark");
+});
+if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) applyTheme("dark");
+
+// Initial render
+renderSwatches();
+render();
+</script>
+</body>
+</html>
