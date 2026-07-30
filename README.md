@@ -68,6 +68,10 @@ To add or remove schemes: edit the `SCHEMES` array at the top of the script bloc
 - Doesn't auto-generate from URLs. Type your text in.
 - Doesn't host the resulting image. Download the PNG, upload it to wherever your assets live (S3, Cloudflare, GitHub Pages, anywhere).
 
+## More
+
+Part of a catalog of single-file browser tools and plain-language references, all MIT licensed and dependency-free: [0xelitesystem.github.io](https://0xelitesystem.github.io/). Built by [elitesystem.ai](https://elitesystem.ai).
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
