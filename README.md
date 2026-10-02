@@ -4,13 +4,13 @@ Generate Open Graph social cards from text input. 1200x630, ready to download. B
 
 **Live demo:** https://0xelitesystem.github.io/og-image-generator/
 
-## Why
+## Why this exists
 
 Every blog post and landing page should have a custom social card so it looks like something when shared on Twitter/X, LinkedIn, Slack, iMessage. Most people skip this step because the existing tools are all overkill: Canva wants an account, Figma wants a workspace, and design-from-scratch takes 20 minutes per card.
 
 This tool does one thing: type a title, pick a layout and color scheme, download a PNG. 30 seconds per card.
 
-## Use it
+## Use
 
 Open `index.html` in any browser. Or visit the hosted version at `https://0xelitesystem.github.io/og-image-generator/` once GitHub Pages is enabled.
 
@@ -21,6 +21,23 @@ Open `index.html` in any browser. Or visit the hosted version at `https://0xelit
 5. Click Download PNG
 
 Click "Copy meta tags" to copy ready-to-paste OG and Twitter card meta tags for your `<head>` section. Replace the placeholder image URL with where you upload the PNG.
+
+## Privacy
+
+Everything runs in your browser. The card is drawn on an HTML canvas and the PNG is created locally when you click Download; nothing you type is uploaded, and the page makes no network requests. Copy meta tags only writes to your clipboard. The only thing the page writes to your browser is your light or dark theme choice, saved in localStorage under the key `theme` when you press the theme button, so the page opens in the same theme next time. Clear site data to remove it.
+
+## Run locally
+
+```
+git clone https://github.com/0xelitesystem/og-image-generator
+cd og-image-generator
+```
+
+Then open `index.html` in any browser. Or serve the folder with `python -m http.server` and visit http://localhost:8000.
+
+## Build
+
+No build step. The whole tool is one file, `index.html`, with its CSS and JavaScript inline.
 
 ## Output specs
 
